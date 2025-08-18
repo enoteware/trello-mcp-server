@@ -1,0 +1,41 @@
+{
+  "name": "trello-mcp-server",
+  "version": "1.0.0",
+  "description": "A Model Context Protocol (MCP) server for Trello board management",
+  "main": "index.js",
+  "type": "module",
+  "bin": {
+    "trello-mcp-server": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "mcp",
+    "trello",
+    "model-context-protocol",
+    "claude",
+    "ai",
+    "productivity",
+    "project-management"
+  ],
+  "author": "PropFirms Team",
+  "license": "MIT",
+  "dependencies": {
+    "fastmcp": "^1.20.5",
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.6.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/enoteware/trello-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/enoteware/trello-mcp-server/issues"
+  },
+  "homepage": "https://github.com/enoteware/trello-mcp-server#readme"
+}
