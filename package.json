@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "module",
   "bin": {
-    "trello-mcp-server": "./index.js"
+    "trello-mcp-server": "./mcp.js",
+    "trello-mcp-http": "./index.js"
   },
   "scripts": {
     "start": "node index.js",
@@ -23,10 +24,11 @@
   "author": "PropFirms Team",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.19.1",
+    "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "fastmcp": "^1.20.5",
     "node-fetch": "^3.3.2",
-    "dotenv": "^16.6.1",
     "zod": "^3.23.8"
   },
   "engines": {
