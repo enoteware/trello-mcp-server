@@ -64,6 +64,16 @@ npm install
    TRELLO_BOARD_ID=your_default_board_id  # Optional
    ```
 
+
+### Per-project environment files
+
+This server will automatically load environment variables from a `.env.local` file in the current working directory if present; otherwise it falls back to `.env`. This lets you keep credentials per project without committing them. Keep these files out of version control.
+
+Order of preference:
+- .env.local (highest)
+- .env
+- already-set process env vars (from the shell, Docker, or MCP config)
+
 ## Usage
 
 ### Standalone Server
@@ -165,7 +175,7 @@ Get recent activity on a board.
 
 **Creating a Project Task:**
 > User: "Create a new card called 'Implement user authentication' in my development board's To Do list"
-> 
+>
 > Assistant: I'll create that card for you. Let me first get your board lists and then create the card.
 
 **Managing Workflow:**
