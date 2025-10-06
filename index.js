@@ -41,24 +41,46 @@ if (!API_KEY || !TOKEN) {
   process.exit(1);
 }
 
-// Helper function to make Trello API calls with error handling
-async function trelloRequest(endpoint, method = 'GET', body = null) {
-  const url = `${TRELLO_API_BASE}${endpoint}?key=${API_KEY}&token=${TOKEN}`;
+// Helper to append Trello auth credentials to a URL object
+function appendAuthParams(url) {
+  if (!url.searchParams.has('key')) {
+    url.searchParams.set('key', API_KEY);
+  }
+  if (!url.searchParams.has('token')) {
+    url.searchParams.set('token', TOKEN);
+  }
+  return url;
+}
 
-  const options = {
+// Helper function to make Trello API calls with error handling
+async function trelloRequest(endpoint, options = {}) {
+  const { method = 'GET', query = {}, body = null } = options;
+  const url = appendAuthParams(new URL(`${TRELLO_API_BASE}${endpoint}`));
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null) continue;
+    url.searchParams.set(key, String(value));
+  }
+
+  const fetchOptions = {
     method,
     headers: {
-      'Content-Type': 'application/json',
       'User-Agent': 'Trello-MCP-Server/1.0.0',
     },
   };
 
   if (body && method !== 'GET') {
-    options.body = JSON.stringify(body);
+    if (body instanceof URLSearchParams) {
+      fetchOptions.body = body;
+      fetchOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    } else {
+      fetchOptions.body = JSON.stringify(body);
+      fetchOptions.headers['Content-Type'] = 'application/json';
+    }
   }
 
   try {
-    const response = await fetch(url, options);
+    const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -70,6 +92,47 @@ async function trelloRequest(endpoint, method = 'GET', body = null) {
     throw new Error(`Failed to make Trello request: ${error.message}`);
   }
 }
+
+async function fetchAttachmentBinary(urlString) {
+  const attemptFetch = async (targetUrl) => {
+    const res = await fetch(targetUrl);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      throw new Error(`Failed to download attachment: ${res.status} ${res.statusText} ${errorText}`);
+    }
+    return res;
+  };
+
+  let downloadUrl;
+  try {
+    const parsed = new URL(urlString);
+    downloadUrl = parsed;
+  } catch {
+    throw new Error('Attachment URL is invalid');
+  }
+
+  try {
+    return await attemptFetch(downloadUrl);
+  } catch (error) {
+    if (error.message.includes('401') || error.message.includes('403')) {
+      const authedUrl = appendAuthParams(new URL(downloadUrl));
+      return attemptFetch(authedUrl);
+    }
+    throw error;
+  }
+}
+
+const createCardSchema = z.object({
+  listId: z.string().min(1, 'listId is required'),
+  name: z.string().min(1, 'name is required'),
+  description: z.string().optional(),
+  pos: z.union([
+    z.literal('top'),
+    z.literal('bottom'),
+    z.number(),
+    z.string().min(1),
+  ]).optional(),
+});
 
 // --- API Endpoints ---
 
@@ -131,13 +194,48 @@ app.get('/cards/:cardId/attachments', async (req, res, next) => {
 // Create a new card
 app.post('/cards', async (req, res, next) => {
   try {
-    const { listId, name, description } = req.body;
-    const card = await trelloRequest('/cards', 'POST', {
-      idList: listId,
-      name: name,
-      desc: description || '',
+    const parsed = createCardSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Invalid request body',
+        issues: parsed.error.flatten(),
+      });
+    }
+
+    const { listId, name, description, pos } = parsed.data;
+    const card = await trelloRequest('/cards', {
+      method: 'POST',
+      query: {
+        idList: listId,
+        name,
+        desc: description ?? undefined,
+        pos: pos === undefined ? undefined : String(pos),
+      },
     });
     res.status(201).json(card);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Download attachment content (e.g., images)
+app.get('/cards/:cardId/attachments/:attachmentId/content', async (req, res, next) => {
+  try {
+    const { cardId, attachmentId } = req.params;
+    const attachment = await trelloRequest(`/cards/${cardId}/attachments/${attachmentId}`);
+
+    if (!attachment?.url) {
+      throw new Error('Attachment URL not available');
+    }
+
+    const downloadResponse = await fetchAttachmentBinary(attachment.url);
+    const arrayBuffer = await downloadResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const mimeType = attachment.mimeType || downloadResponse.headers.get('content-type') || 'application/octet-stream';
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
   } catch (error) {
     next(error);
   }
